@@ -28,8 +28,9 @@ from pyomo.environ import value
 
 # from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core.util import get_solver
+from pyparsing import lineStart
 
-from simple_rankine_cycle import stochastic_optimization_problem
+from steady_state_price_taker import steady_state_price_taker
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
@@ -39,10 +40,14 @@ from time import perf_counter
 capital_payment_years = 3
 plant_lifetime = 20
 heat_recovery = True
-calc_boiler_eff = False
+calc_boiler_eff = True
 p_max_lower_bound = 175
 p_max__upper_bound = 450
+include_shutdown = False
+# p_max_lower_bound = 10
+# p_max__upper_bound = 300
 
+########## Loading Data ###########
 # ARPA-E Signal - NREL
 # NREL Scenario - Mid NG Price, Carbon Tax 100$, CAISO
 # average_hourly = np.load("nrel_scenario_average_hourly.npy")
@@ -50,20 +55,28 @@ p_max__upper_bound = 450
 # weights_rep_days = np.load("nrel_scenario_12_rep_days_weights.npy")
 # raw_data = pd.read_pickle("nrel_raw_data_to_pickle.pkl")
 
-# RTS-GMLC Signal Unfiltered
+# RTS-GMLC Signal Unfiltered (old data)
 # average_hourly = np.load("rts_bus_scenario_average_hourly.npy")
 # rep_days = np.load("rts_bus_scenario_12_rep_days.npy")
 # weights_rep_days = np.load("rts_bus_scenario_12_rep_days_weights.npy")
-raw_data = pd.read_pickle("rts_raw_data_to_pickle.pkl")
+# raw_data = pd.read_pickle("rts_raw_data_to_pickle.pkl")
 
-# RTS-GMLC Signal Filtered < 100
+# RTS-GMLC Signal Filtered < 100 (old data)
 # average_hourly = np.load("rts_bus_scenario_average_hourly.npy")
 # rep_days = np.load("rts_bus_scenario_12_rep_days.npy")
 # weights_rep_days = np.load("rts_bus_scenario_12_rep_days_weights.npy")
 # raw_data = pd.read_pickle("rts_raw_data_filtered_100_to_pickle.pkl")
 
+# RTS-GMLC Signal Unfiltered (new data - 10/10/2021)
+
+with open('rts_results_all_prices_base_case.npy', 'rb') as f:
+    dispatch = np.load(f)
+    price = np.load(f)
+
+########## Using data ###########
 # Using average_hourly for single day for all year
-# price = average_hourly.tolist()
+# actual_price = average_hourly.tolist()
+# price = [i for i in actual_price]
 # weight = 365*np.ones(len(price))
 # weight = weight.tolist()
 # power_demand = None
@@ -83,7 +96,7 @@ raw_data = pd.read_pickle("rts_raw_data_to_pickle.pkl")
 # price = price_all
 
 # RTS dataset
-price = raw_data["Price"].tolist()
+# price = raw_data["Price"].tolist()
 ones_array = np.ones(len(price))
 weight = ones_array.flatten().tolist()
 power_demand = None
@@ -91,9 +104,10 @@ power_demand = None
 if __name__ == "__main__":
 
     build_tic = perf_counter()
-    m = stochastic_optimization_problem(
+    m = steady_state_price_taker(
         heat_recovery=heat_recovery,
         calc_boiler_eff=calc_boiler_eff,
+        include_shutdown=include_shutdown,
         capital_payment_years=capital_payment_years,
         p_max_lower_bound=p_max_lower_bound,
         p_max_upper_bound=p_max__upper_bound,
@@ -113,71 +127,93 @@ if __name__ == "__main__":
     optimal_p_max = value(m.cap_fs.fs.net_cycle_power_output)*1e-6
 
     p_scenario = []
-    p_max_scenario = []
+    # p_max_scenario = []
     op_cost_scenario = []
     cycle_eff_scenario = []
     boiler_eff_scenario = []
+    on_off_scenario = []
     for i in range(len(price)):
         scenario = getattr(m, 'scenario_{}'.format(i))
-        p_scenario.append(value(scenario.fs.net_cycle_power_output)*1e-6)
+        p_scenario.append(
+            round(value(scenario.fs.net_cycle_power_output)*1e-6
+                  * value(scenario.fs.on_off), 3))
         # p_max_scenario.append(value(scenario.fs.net_power_max)*1e-6)
         cycle_eff_scenario.append(value(scenario.fs.cycle_efficiency))
         boiler_eff_scenario.append(value(scenario.fs.boiler_eff))
         op_cost_scenario.append(value(scenario.fs.operating_cost))
+        on_off_scenario.append(value(scenario.fs.on_off))
     p_min = 0.3*max(p_scenario)
+    capacity_factor_dispatch = \
+        [i*100/round(optimal_p_max, 3) for i in p_scenario]
 
     # calculate operating cost per MWh
     op_cost = []
-    for i in range(len(p_scenario)):
-        op_cost.append(op_cost_scenario[i]/p_scenario[i])
+    for i, val in enumerate(p_scenario):
+        if val > 10:
+            op_cost.append(op_cost_scenario[i]/val)
+        else:
+            op_cost.append(0)
 
-    print("The net revenue is M$", optimal_objective/1e6)
+    print("Time required to build model= ", model_build_time, "secs")
+    print()
+    print("The net profit/loss is M$", optimal_objective/1e6)
     print("P_max = ", optimal_p_max, ' MW')
     print("P_min = ", p_min, ' MW')
-    print("Time required to build model= ", model_build_time, "secs")
-
-    # print()
-    # print("operating cost $/MWh")
-    # print(op_cost)
-    # print()
-    # print("cycle efficiency")
-    # print(cycle_eff_scenario)
-    # print()
-    # print("boiler efficiency")
-    # print(boiler_eff_scenario)
+    print("Revenue per year = ",
+          value(m.total_revenue)/1e6/plant_lifetime, "M$/year")
+    print("Capital cost = ", value(m.cap_fs.fs.capital_cost), "M$")
+    print("Operating cost per year = ",
+          (value(m.total_cost)/1e6 -
+           value(m.cap_fs.fs.capital_cost))/plant_lifetime, "M$/year")
+    print()
+    print("Plant on_off status")
+    print(on_off_scenario)
 
     hour_list = list(range(1, len(price) + 1))
+
+    # Generate plots
+    """
+    # Option 1: Single plot with secondary y-axis
     fig, ax = plt.subplots()
+
+    # plot hour vs. price
     ax.step(hour_list, price, linestyle="dashed", color="green")
+
+    # plot hour vs. op_cost
     # ax.step(hour_list, op_cost, color='green', marker='o',
     #         linestyle="None",
     #         markerfacecolor="None",
     #         markersize=5,
     #         label="operating cost")
+
     # set x-axis label
     ax.set_xlabel("Time (h)", fontsize=14)
+
     # set y-axis label
     ax.set_ylabel("LMP ($/MWh)", color="green", fontsize=14)
 
     ax2 = ax.twinx()
+
+    # plot hour vs. power produced in each hour
     ax2.step(hour_list, p_scenario, color="blue", marker='o',
              linestyle="None",
              markerfacecolor="None",
              markersize=5)
+
+    # set y-axis label
     ax2.set_ylabel("Power Produced (MW)", color="blue",fontsize=14)
     ax2.ticklabel_format(useOffset=False, style="plain")
     ax2.set_ylim([p_min-5, optimal_p_max+25])
 
-    plt.axhline(optimal_p_max, color="red",
-                linewidth=0.9, label="p_max")
-    plt.axhline(
-        p_min,
-        color="orange", linewidth=0.9, label="p_min")
+    # plot horizontal line for p_max
+    plt.axhline(optimal_p_max, color="red", linewidth=0.9)
+    plt.annotate("$p_{max}$", xy=[1.75, optimal_p_max + 5], size=15)
+    # plot horizontal line for p_min
+    plt.axhline(p_min, color="orange", linewidth=0.9)
+    plt.annotate("$p_{min}$", xy=[1.75, p_min + 5], size=15)
     plt.xlim(1, len(price))
     ax.grid(which='major', axis='both', linestyle='--')
-    ax.legend()
-    ax2.legend()
-    plt.savefig("RTS_365_days_without_boiler_eff.png")
+    # plt.savefig("RTS_365_days_without_boiler_eff.png")
     plt.show()
 
     # fig2, ax = plt.subplots()
@@ -189,4 +225,42 @@ if __name__ == "__main__":
     # ax.grid(which='major', axis='both', linestyle='--')
     # plt.show()
     # plt.savefig("arpae_rep_days_with_boiler_eff.png")
+    """
 
+    # Option 2: 4 sub-plots
+    # subplot(1,1): LMP and op cost vs. time
+    # subplot(1,2): LMP histogram
+    # subplot(2,1): Power schedule vs. time
+    # subplot(2,2): power profile histogram
+    fig, axs = plt.subplots(2, 2)
+    # subplot(0,1): LMP vs. time
+    axs[0, 0].step(hour_list, price, linestyle="dashed", color="green")
+    axs[0, 0].grid(which="major", axis="both", linestyle="--")
+    axs[0, 0].set_xlabel("Time (h)")
+    axs[0, 0].set_ylabel("LMP ($/MWh)")
+
+    # subplot(1,0): p_scenario vs. time
+    axs[1, 0].step(hour_list, p_scenario, linestyle="dashed", color="blue")
+    axs[1, 0].grid(which="major", axis="both", linestyle="--")
+    axs[1, 0].set_xlabel("Time (h)")
+    axs[1, 0].set_ylabel("Power (MW)")
+
+    # subplot(0,1): price histogram
+    axs[0, 1].hist(price, bins=10, color="green")
+    axs[0, 1].grid(which="major", axis="both", linestyle="--")
+    axs[0, 1].set_xlabel("LMP ($/MWh)")
+    axs[0, 1].set_ylabel("Frequency")
+
+    # subplot(1,1): power histogram
+    axs[1, 1].hist(p_scenario, bins=10, color="blue")
+    axs[1, 1].grid(which="major", axis="both", linestyle="--")
+    axs[1, 1].set_xlabel("Power (MW)")
+    axs[1, 1].set_ylabel("Frequency")
+
+    # # subplot(1,1): capacity_factor histogram
+    # axs[1, 1].hist(capacity_factor_dispatch, range=[30, 100], color="blue")
+    # axs[1, 1].grid(which="major", axis="both", linestyle="--")
+    # axs[1, 1].set_xlabel("Capacity factor (%)")
+    # axs[1, 1].set_ylabel("Frequency")
+
+    plt.show()
