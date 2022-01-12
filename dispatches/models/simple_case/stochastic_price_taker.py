@@ -40,7 +40,7 @@ from time import perf_counter
 capital_payment_years = 3
 plant_lifetime = 20
 heat_recovery = True
-calc_boiler_eff = True
+calc_boiler_eff = False
 p_max_lower_bound = 175
 p_max__upper_bound = 450
 include_shutdown = False

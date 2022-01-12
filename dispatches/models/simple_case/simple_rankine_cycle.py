@@ -550,11 +550,11 @@ def square_problem(heat_recovery=None,
 
 if __name__ == "__main__":
 
-    """
+
     # Code to generate op cost, heat rate, eff vs. capacity factor plot
-    p_max = 300
+    p_max = 500
     p_min = 0.3*p_max
-    power = list(reversed(range(int(p_min), p_max + 30, 30)))
+    power = list(reversed(range(int(p_min), p_max + 50, 50)))
     plant_capacity = [p*100/p_max for p in power]
     cycle_eff = []
     heat_rate = []
@@ -623,17 +623,17 @@ if __name__ == "__main__":
     # ax2.legend()
     lines = ax.get_lines() + ax2.get_lines()
     ax.legend(lines, [line.get_label() for line in lines], loc='upper center')
-    plt.savefig(
-        "manuscript_figs/operating_cost_and_heat_rate_vs_plant_capacity_greyscale.pdf",
-        format="pdf",
-        bbox_inches="tight")
-    plt.savefig(
-        "manuscript_figs/operating_cost_and_heat_rate_vs_plant_capacity_greyscale.png",
-        format="png", dpi=1000,
-        bbox_inches="tight")
+    # plt.savefig(
+    #     "manuscript_figs/operating_cost_and_heat_rate_vs_plant_capacity_greyscale.pdf",
+    #     format="pdf",
+    #     bbox_inches="tight")
+    # plt.savefig(
+    #     "manuscript_figs/operating_cost_and_heat_rate_vs_plant_capacity_greyscale.png",
+    #     format="png", dpi=1000,
+    #     bbox_inches="tight")
     plt.show()
 
-    """
+
 
     """
     # Code to generate capital cost vs. P_max
