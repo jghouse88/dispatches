@@ -68,8 +68,12 @@ include_shutdown = False
 # raw_data = pd.read_pickle("rts_raw_data_filtered_100_to_pickle.pkl")
 
 # RTS-GMLC Signal Unfiltered (new data - 10/10/2021)
+# with open('rts_results_all_prices_base_case.npy', 'rb') as f:
+#     dispatch = np.load(f)
+#     price = np.load(f)
 
-with open('rts_results_all_prices_base_case.npy', 'rb') as f:
+# RTS-GMLC Signal Unfiltered (new data - 01/16/2021)
+with open('rts_results_basecase_run_0.npy', 'rb') as f:
     dispatch = np.load(f)
     price = np.load(f)
 
@@ -96,7 +100,7 @@ with open('rts_results_all_prices_base_case.npy', 'rb') as f:
 # price = price_all
 
 # RTS dataset
-# price = raw_data["Price"].tolist()
+price = price.tolist()
 ones_array = np.ones(len(price))
 weight = ones_array.flatten().tolist()
 power_demand = None
