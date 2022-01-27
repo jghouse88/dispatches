@@ -449,8 +449,11 @@ def add_operating_cost(m, include_cooling_cost=True):
         doc="Higher heating value of coal as received kJ/kg")
 
     # cost of coal (Reference - NETL baseline report rev #4)
-    m.fs.coal_cost = Param(
-        initialize=51.96,
+    # m.fs.coal_cost = Param(
+    #     initialize=51.96,
+    #     doc="$ per ton of Illinois no. 6 coal"
+    m.fs.coal_cost = Param(mutable=True,
+        initialize=30,
         doc="$ per ton of Illinois no. 6 coal"
     )
 
@@ -495,6 +498,7 @@ def square_problem(heat_recovery=None,
                    capital_fs=False,
                    net_power=100,
                    p_max=100,
+                   coal_price=None,
                    calc_boiler_eff=False,
                    capital_payment_years=5):
 
@@ -540,6 +544,8 @@ def square_problem(heat_recovery=None,
         expr=(m.fs.capital_cost*1e6/capital_payment_years/8760) +
         m.fs.operating_cost)
 
+    if coal_price is not None:
+        m.fs.coal_cost = coal_price
     solver = get_solver()
     solver.solve(m, tee=True)
 
@@ -550,7 +556,7 @@ def square_problem(heat_recovery=None,
 
 if __name__ == "__main__":
 
-
+    """
     # Code to generate op cost, heat rate, eff vs. capacity factor plot
     p_max = 500
     p_min = 0.3*p_max
@@ -633,6 +639,7 @@ if __name__ == "__main__":
     #     bbox_inches="tight")
     plt.show()
 
+    """
 
 
     """
@@ -676,3 +683,31 @@ if __name__ == "__main__":
             bbox_inches="tight")
     plt.show()
     """
+
+    # Code to generate operating cost at P_max vs. coal price
+    p_max = 500
+    power = p_max
+    coal_price = list(range(20, 60, 5))
+    op_cost = []
+    for i in coal_price:
+        print(i)
+        m = square_problem(
+            heat_recovery=True,
+            capital_fs=False,
+            calc_boiler_eff=True,
+            coal_price=i,
+            p_max=p_max, net_power=power)
+        op_cost.append(value(m.fs.operating_cost)/power)
+
+    plt.plot(coal_price, op_cost,
+             marker="o",
+             markersize=6,
+             linestyle='--',
+             color="blue")
+    plt.grid(linestyle='--', linewidth=0.5)
+    plt.xlabel("Coal Price ($/ton)")
+    plt.ylabel("Operating Cost ($/MWh)")
+    # plt.savefig("manuscript_figs/operating_cost_vs_coal_price.png",
+    #         format="png", dpi=1000,
+    #         bbox_inches="tight")
+    plt.show()
