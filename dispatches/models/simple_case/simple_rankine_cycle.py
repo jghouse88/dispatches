@@ -403,7 +403,7 @@ def add_capital_cost(m):
     return m
 
 
-def add_operating_cost(m, include_cooling_cost=True):
+def add_operating_cost(m, include_cooling_cost=True, coal_price=51.96):
 
     """Add operating cost expressions. The operating cost only includes
     the cost of coal. This is computed by calculating the amount of coal
@@ -453,7 +453,7 @@ def add_operating_cost(m, include_cooling_cost=True):
     #     initialize=51.96,
     #     doc="$ per ton of Illinois no. 6 coal"
     m.fs.coal_cost = Param(mutable=True,
-        initialize=30,
+        initialize=coal_price,
         doc="$ per ton of Illinois no. 6 coal"
     )
 
@@ -579,51 +579,51 @@ if __name__ == "__main__":
     # plots
     fig, ax = plt.subplots()
     # color
-    # plt.plot(plant_capacity, op_cost, linestyle="--",
-    #          marker="o", color="green")
-    # greyscale
     ax.plot(plant_capacity, op_cost, linestyle="--",
-             marker="o", color="black", label="Operating Cost/Heat Rate")
+             marker="o", color="green", label="Operating Cost/Heat Rate")
+    # greyscale
+    # ax.plot(plant_capacity, op_cost, linestyle="--",
+    #          marker="o", color="black", label="Operating Cost/Heat Rate")
     sec_yaxis = ax.secondary_yaxis('left')
 
     ax.set_xlabel("Operating Capacity (%)")
     # color
-    # ax.set_ylabel("Operating Cost ($/MWh)", color="green")
+    ax.set_ylabel("Operating Cost ($/MWh)", color="green")
     # greyscale
-    ax.set_ylabel("Operating Cost ($/MWh)")
+    # ax.set_ylabel("Operating Cost ($/MWh)")
 
     ax1 = ax.twinx()
 
     # color
-    # ax1.plot(plant_capacity, heat_rate, linestyle="--",
-    #          marker="o", color="green")
+    ax1.plot(plant_capacity, heat_rate, linestyle="--",
+             marker="o", color="green")
 
     # greyscale
-    ax1.plot(plant_capacity, heat_rate, linestyle="--",
-             marker="o", color="black")
+    # ax1.plot(plant_capacity, heat_rate, linestyle="--",
+    #          marker="o", color="black")
     ax1.yaxis.set_ticks_position('left')
     ax1.yaxis.set_label_position('left')
     ax1.spines['left'].set_position(('outward', 75))
 
     # color
-    # ax1.set_ylabel("Heat Rate (BTU/kWh)", color="green")
+    ax1.set_ylabel("Heat Rate (BTU/kWh)", color="green")
 
     # greyscale
-    ax1.set_ylabel("Heat Rate (BTU/kWh)")
+    # ax1.set_ylabel("Heat Rate (BTU/kWh)")
 
     ax2 = ax.twinx()
     # color
-    # ax2.plot(plant_capacity, cycle_eff, linestyle="--",
-    #          marker="o", color="blue")
+    ax2.plot(plant_capacity, cycle_eff, linestyle="--",
+             marker="x", color="blue", label="Cycle Efficiency")
 
     # greyscale
-    ax2.plot(plant_capacity, cycle_eff, linestyle=":",
-             marker="x", color="black", label="Cycle Efficiency")
+    # ax2.plot(plant_capacity, cycle_eff, linestyle=":",
+    #          marker="x", color="black", label="Cycle Efficiency")
 
     # color
-    # ax2.set_ylabel("Cycle Efficiency (%)", color="blue")
+    ax2.set_ylabel("Cycle Efficiency (%)", color="blue")
     # greyscale
-    ax2.set_ylabel("Cycle Efficiency (%)")
+    # ax2.set_ylabel("Cycle Efficiency (%)")
     ax.grid(True, which="both", linestyle='--', linewidth=0.5)
     # ax.legend()
     # ax2.legend()
@@ -633,15 +633,13 @@ if __name__ == "__main__":
     #     "manuscript_figs/operating_cost_and_heat_rate_vs_plant_capacity_greyscale.pdf",
     #     format="pdf",
     #     bbox_inches="tight")
-    # plt.savefig(
-    #     "manuscript_figs/operating_cost_and_heat_rate_vs_plant_capacity_greyscale.png",
-    #     format="png", dpi=1000,
-    #     bbox_inches="tight")
+    plt.savefig(
+        "manuscript_figs/operating_cost_and_heat_rate_vs_plant_capacity_coal_price_30.png",
+        format="png", dpi=1000,
+        bbox_inches="tight")
     plt.show()
 
     """
-
-
     """
     # Code to generate capital cost vs. P_max
     # Plot for manuscript (capex vs. P_max from 150 to 500 MW)
@@ -685,29 +683,32 @@ if __name__ == "__main__":
     """
 
     # Code to generate operating cost at P_max vs. coal price
-    p_max = 500
-    power = p_max
-    coal_price = list(range(20, 60, 5))
-    op_cost = []
+    p_max = 175
+    power = [0.3*p_max, p_max]
+    coal_price = list(range(5, 70, 5))
+    op_cost_avg = []
     for i in coal_price:
-        print(i)
-        m = square_problem(
-            heat_recovery=True,
-            capital_fs=False,
-            calc_boiler_eff=True,
-            coal_price=i,
-            p_max=p_max, net_power=power)
-        op_cost.append(value(m.fs.operating_cost)/power)
+        op_cost_sum = 0
+        for j in power:
+            print(i)
+            m = square_problem(
+                heat_recovery=True,
+                capital_fs=False,
+                calc_boiler_eff=True,
+                coal_price=i,
+                p_max=p_max, net_power=j)
+            op_cost_sum += value(m.fs.operating_cost)/j
+        op_cost_avg.append(op_cost_sum/2)
 
-    plt.plot(coal_price, op_cost,
+    plt.plot(coal_price, op_cost_avg,
              marker="o",
              markersize=6,
              linestyle='--',
              color="blue")
     plt.grid(linestyle='--', linewidth=0.5)
-    plt.xlabel("Coal Price ($/ton)")
+    plt.xlabel("Coal Price ($/Ton)")
     plt.ylabel("Operating Cost ($/MWh)")
-    # plt.savefig("manuscript_figs/operating_cost_vs_coal_price.png",
-    #         format="png", dpi=1000,
-    #         bbox_inches="tight")
+    plt.savefig("manuscript_figs/marginal_op_cost_vs_coal_price.png",
+            format="png", dpi=1000,
+            bbox_inches="tight")
     plt.show()

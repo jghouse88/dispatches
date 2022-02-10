@@ -51,7 +51,8 @@ def steady_state_price_taker(heat_recovery=False,
                              capital_payment_years=5,
                              plant_lifetime=20,
                              power_demand=None, lmp=None,
-                             lmp_weights=None):
+                             lmp_weights=None,
+                             coal_price=None):
     """This method sets up the stochastic optimization problem that sets up a
     steady-state, pricetaker problem.
 
@@ -103,7 +104,7 @@ def steady_state_price_taker(heat_recovery=False,
             # Closing the loop in the flowsheet
             op_fs = close_flowsheet_loop(op_fs)
 
-            op_fs = add_operating_cost(op_fs)
+            op_fs = add_operating_cost(op_fs, coal_price=coal_price)
 
             op_expr += lmp_weights[i]*op_fs.fs.operating_cost
             rev_expr += lmp_weights[i]*lmp[i]* \
@@ -144,7 +145,7 @@ def steady_state_price_taker(heat_recovery=False,
 
             # Closing the loop in the flowsheet
             op_fs = close_flowsheet_loop(op_fs)
-            op_fs = add_operating_cost(op_fs)
+            op_fs = add_operating_cost(op_fs, coal_price=coal_price)
 
             op_expr += lmp_weights[i]*op_fs.fs.on_off*op_fs.fs.operating_cost
             rev_expr += lmp_weights[i]*float(lmp[i])*op_fs.fs.on_off*op_fs.\
