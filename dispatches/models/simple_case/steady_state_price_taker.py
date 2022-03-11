@@ -48,6 +48,7 @@ def steady_state_price_taker(heat_recovery=False,
                              include_shutdown=False,
                              p_max_lower_bound=10,
                              p_max_upper_bound=300,
+                             p_min_multiplier=0.3,
                              capital_payment_years=5,
                              plant_lifetime=20,
                              power_demand=None, lmp=None,
@@ -114,7 +115,7 @@ def steady_state_price_taker(heat_recovery=False,
             # operating P_min <= 30% of design P_max
             op_fs.fs.eq_min_power = Constraint(
                 expr=op_fs.fs.net_cycle_power_output >=
-                0.3*m.cap_fs.fs.net_cycle_power_output)
+                p_min_multiplier*m.cap_fs.fs.net_cycle_power_output)
             # operating P_max = design P_max
             op_fs.fs.eq_max_power = Constraint(
                 expr=op_fs.fs.net_cycle_power_output <=
@@ -162,7 +163,7 @@ def steady_state_price_taker(heat_recovery=False,
             # operating P_min <= 30% of design P_max
             op_fs.fs.eq_min_power = Constraint(
                 expr=op_fs.fs.net_cycle_power_output >=
-                0.3*m.cap_fs.fs.net_cycle_power_output)
+                p_min_multiplier*m.cap_fs.fs.net_cycle_power_output)
             # operating P_max = design P_max
             op_fs.fs.eq_max_power = Constraint(
                 expr=op_fs.fs.net_cycle_power_output <=

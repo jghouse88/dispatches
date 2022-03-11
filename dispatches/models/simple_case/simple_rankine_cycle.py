@@ -31,9 +31,10 @@ __author__ = "Jaffer Ghouse"
 
 
 # Import Pyomo libraries
+# from msilib.schema import Binary
 from pyomo.environ import ConcreteModel, units, Var, \
     TransformationFactory, value, Block, Expression, Constraint, Param, \
-    Objective
+    Objective, Binary
 from pyomo.network import Arc
 # from pyomo.util.infeasible import log_close_to_bounds
 
@@ -177,8 +178,9 @@ def create_model(heat_recovery=False, calc_boiler_eff=False, capital_fs=False):
     # Plant on-off variable
     # NOTE: declared as a continous var to be bounded between 0,1 when
     # solving a R-MINLP
+    # m.fs.on_off = Var(domain=Binary)
     m.fs.on_off = Var(initialize=1)
-    m.fs.on_off.fix()
+    m.fs.on_off.fix(1)
 
     return m
 
@@ -683,9 +685,10 @@ if __name__ == "__main__":
     """
 
     # Code to generate operating cost at P_max vs. coal price
-    p_max = 175
+    p_max = 177.5
     power = [0.3*p_max, p_max]
-    coal_price = list(range(5, 70, 5))
+    # coal_price = list(range(5, 70, 5))
+    coal_price = [30, 50]
     op_cost_avg = []
     for i in coal_price:
         op_cost_sum = 0
@@ -700,15 +703,16 @@ if __name__ == "__main__":
             op_cost_sum += value(m.fs.operating_cost)/j
         op_cost_avg.append(op_cost_sum/2)
 
-    plt.plot(coal_price, op_cost_avg,
-             marker="o",
-             markersize=6,
-             linestyle='--',
-             color="blue")
-    plt.grid(linestyle='--', linewidth=0.5)
-    plt.xlabel("Coal Price ($/Ton)")
-    plt.ylabel("Operating Cost ($/MWh)")
-    plt.savefig("manuscript_figs/marginal_op_cost_vs_coal_price.png",
-            format="png", dpi=1000,
-            bbox_inches="tight")
-    plt.show()
+    print(coal_price, op_cost_avg)
+    # plt.plot(coal_price, op_cost_avg,
+    #          marker="o",
+    #          markersize=6,
+    #          linestyle='--',
+    #          color="blue")
+    # plt.grid(linestyle='--', linewidth=0.5)
+    # plt.xlabel("Coal Price ($/Ton)")
+    # plt.ylabel("Operating Cost ($/MWh)")
+    # plt.savefig("manuscript_figs/marginal_op_cost_vs_coal_price.png",
+    #         format="png", dpi=1000,
+    #         bbox_inches="tight")
+    # plt.show()

@@ -24,7 +24,7 @@ __author__ = "Jaffer Ghouse"
 
 # Import Pyomo libraries
 from logging import raiseExceptions
-from pyomo.environ import value, Constraint
+from pyomo.environ import value, Constraint, SolverFactory
 # from pyomo.util.infeasible import log_close_to_bounds
 
 # from idaes.core.util.model_statistics import degrees_of_freedom
@@ -37,6 +37,8 @@ import numpy as np
 import pandas as pd
 from time import perf_counter
 from statistics import mean
+import gc
+
 # Inputs for stochastic problem
 capital_payment_years = 3
 plant_lifetime = 20
@@ -44,7 +46,7 @@ heat_recovery = True
 calc_boiler_eff = True
 p_max_lower_bound = 175
 p_max__upper_bound = 450
-include_shutdown = False
+include_shutdown = True
 # coal_price = 50
 # p_max_lower_bound = 10
 # p_max__upper_bound = 300
@@ -123,61 +125,135 @@ power_demand = None
 
 if __name__ == "__main__":
 
-    marginal_cost = list(range(10, 35, 5))
-    annual_revenue = []
-    avg_cap_factor = []
-    op_p_max = []
 
-    for c in marginal_cost:
-        coal_price = (1/0.402)*(c-5.22)
-        # build_tic = perf_counter()
-        m = steady_state_price_taker(
-            heat_recovery=heat_recovery,
-            calc_boiler_eff=calc_boiler_eff,
-            include_shutdown=include_shutdown,
-            capital_payment_years=capital_payment_years,
-            p_max_lower_bound=p_max_lower_bound,
-            p_max_upper_bound=p_max__upper_bound,
-            plant_lifetime=20,
-            power_demand=power_demand, lmp=price, lmp_weights=weight,
-            coal_price=coal_price)
-        # build_toc = perf_counter()
-        # Fix p_max by setting constraint
-        m.fix_p_max = Constraint(
-            expr=m.cap_fs.fs.net_cycle_power_output == 177.5e6)
+
+    # Sensitivity analysis against marginal cost that was changed with
+    # different coal prices
+    # marginal_cost = list(range(10, 35, 5))
+    # marginal_cost.reverse()
+    # linear correlation between coal price and marginal cost
+    # coal_price = [((1/0.402)*(c-5.22)) for c in marginal_cost]
+    coal_price = [30, 50]
+    annual_revenue = []
+    capital_cost = []
+    avg_cap_factor = []
+    annual_op_cost = []
+    op_p_max = []
+    for i in range(len(coal_price)):
+        if i == 0:
+            # build the model
+            m = steady_state_price_taker(
+                heat_recovery=heat_recovery,
+                calc_boiler_eff=calc_boiler_eff,
+                include_shutdown=True,
+                capital_payment_years=capital_payment_years,
+                p_max_lower_bound=p_max_lower_bound,
+                p_max_upper_bound=p_max__upper_bound,
+                p_min_multiplier=0.15,
+                plant_lifetime=20,
+                power_demand=power_demand, lmp=price, lmp_weights=weight,
+                coal_price=coal_price[i])
+
+            # Constraint to run senstivity for a fixed p_max
+            # Comment this if need to solve for optimal p_max
+            # m.fix_p_max = Constraint(
+            #     expr=m.cap_fs.fs.net_cycle_power_output == 266.25e6)
+        else:
+            # change coal price for the built model
+            # NOTE: initial point is from previous optimal solution
+            for s in range(len(price)):
+                scenario = getattr(m, 'scenario_{}'.format(s))
+                scenario.fs.coal_cost = coal_price[i]
+
         solver = get_solver()
         solver.options = {
             "tol": 1e-6
         }
-        res = solver.solve(m, tee=True)
+        # First solve NLP with on/off var fixed at 1
+        print("Solving for marginal cost = ", coal_price[i])
+        print("Solving with on mode first - NLP")
+        for s in range(len(price)):
+            scenario = getattr(m, 'scenario_{}'.format(s))
+            scenario.fs.on_off.fix(1)
+        res = solver.solve(m, tee=False)
+        print(res)
+        # Once NLP is solved, solve rMINLP with on/off var unfixed
+        print("Solving with on/off mode - rMINLP")
+        for s in range(len(price)):
+            scenario = getattr(m, 'scenario_{}'.format(s))
+            scenario.fs.on_off.unfix()
+        res = solver.solve(m, tee=False)
+        print(res)
+
+        # else:
+        #     print("Solving for marginal cost = ", marginal_cost[i])
+        #     res = solver.solve(m, tee=True)
+
+        # for s in range(len(price)):
+        #     scenario = getattr(m, 'scenario_{}'.format(s))
+        #     if price[s] <= marginal_cost[i]:
+        #         scenario.fs.on_off = 0
+        #     else:
+        #         scenario.fs.on_off = 1
+
+        # print("solving for marginal cost = ", marginal_cost[i], "$/MwH")
+        # res = solver.solve(m, tee=True)
+        # print("Revenue per year = ",
+        #             value(m.total_revenue)/1e6/plant_lifetime, "M$/year")
+
+        # build_tic = perf_counter()
+        # m = steady_state_price_taker(
+        #     heat_recovery=heat_recovery,
+        #     calc_boiler_eff=calc_boiler_eff,
+        #     include_shutdown=include_shutdown,
+        #     capital_payment_years=capital_payment_years,
+        #     p_max_lower_bound=p_max_lower_bound,
+        #     p_max_upper_bound=p_max__upper_bound,
+        #     plant_lifetime=20,
+        #     power_demand=power_demand, lmp=price, lmp_weights=weight,
+        #     coal_price=coal_price)
+        # build_toc = perf_counter()
+        # Fix p_max by setting constraint
+        # m.fix_p_max = Constraint(
+        #     expr=m.cap_fs.fs.net_cycle_power_output == 177.5e6)
+        # solver = get_solver()
+        # solver.options = {
+        #     "tol": 1e-6
+        # }
+        # # solver = SolverFactory('bonmin', tee=True)
+        # res = solver.solve(m, tee=True)
 
         # Process results
         # model_build_time = build_toc - build_tic
         # optimal_objective = -value(m.obj)
         optimal_p_max = value(m.cap_fs.fs.net_cycle_power_output)*1e-6
         op_p_max.append(optimal_p_max)
+        capital_cost.append(value(m.cap_fs.fs.capital_cost))
 
         p_scenario = []
         # p_max_scenario = []
         # op_cost_scenario = []
         # cycle_eff_scenario = []
         # boiler_eff_scenario = []
-        # on_off_scenario = []
-        for i in range(len(price)):
-            scenario = getattr(m, 'scenario_{}'.format(i))
+        on_off_scenario = []
+        for j in range(len(price)):
+            scenario = getattr(m, 'scenario_{}'.format(j))
             p_scenario.append(
-                round(value(scenario.fs.net_cycle_power_output)*1e-6
-                    * value(scenario.fs.on_off), 3))
+                round(value(scenario.fs.net_cycle_power_output)*1e-6, 3))
             # p_max_scenario.append(value(scenario.fs.net_power_max)*1e-6)
             # cycle_eff_scenario.append(value(scenario.fs.cycle_efficiency))
             # boiler_eff_scenario.append(value(scenario.fs.boiler_eff))
             # op_cost_scenario.append(value(scenario.fs.operating_cost))
-            # on_off_scenario.append(value(scenario.fs.on_off))
+            on_off_scenario.append(value(scenario.fs.on_off))
             p_min = 0.3*max(p_scenario)
-            capacity_factor_dispatch = \
-                [i*100/round(optimal_p_max, 3) for i in p_scenario]
+        capacity_factor_dispatch = \
+            [p_scenario[i]*100*on_off_scenario[i]/round(optimal_p_max, 4)
+             for i in range(len(p_scenario))]
         avg_cap_factor.append(mean(capacity_factor_dispatch))
         annual_revenue.append(value(m.total_revenue)/1e6/plant_lifetime)
+        annual_op_cost.append(
+            (value(m.total_cost)/1e6 -
+             value(m.cap_fs.fs.capital_cost))/plant_lifetime)
     # # calculate operating cost per MWh
     # op_cost = []
     # for i, val in enumerate(p_scenario):
@@ -210,10 +286,12 @@ if __name__ == "__main__":
     # results=pd.DataFrame(data=to_store)
     # results.to_pickle("price_taker_full_year_with_boil_eff_coal_30_basecase_rts.pkl")
 
-    # store in dataframe
-    to_store = {"marginal_cost": marginal_cost,
-                "p_max": optimal_p_max,
-                "annual_revenue": annual_revenue,
-                "avg_capacity_factor": avg_cap_factor}
-    results = pd.DataFrame(data=to_store)
-    results.to_pickle("price_taker_revenue_vs_marginal_cost_fixed_pmax.pkl")
+    # store sensitivity results in dataframe
+    to_store_optimal = {"coal_price ($/tonne)": coal_price,
+                        "optimal_p_max (MW)": optimal_p_max,
+                        "Capital cost M$": capital_cost,
+                        "annual_revenue ($M/yr)": annual_revenue,
+                        "annual_op_cost ($M/yr)": annual_op_cost,
+                        "avg_capacity_factor (%)": avg_cap_factor}
+    results_optimal = pd.DataFrame(data=to_store_optimal)
+    results_optimal.to_pickle("rminlp_price_taker_revenue_vs_coal_price_optimal_p_max_table_4.pkl")
