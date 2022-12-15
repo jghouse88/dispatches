@@ -5,6 +5,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.rc('font', size=32)
 plt.rc('axes', titlesize=32)     # fontsize of the axes title
+plt.rc('text', usetex=True)
 import numpy as np
 import seaborn as sns
 import scipy
@@ -23,20 +24,27 @@ df_nstartups = pd.read_hdf(f_startups)
 df_perturbed_outputs.index = df_perturbed_outputs.iloc[:,0]
 # output_subset = ['Total Dispatch [MW]', 'Total Revenue [$]']
 output_subset = ['Total Revenue [$]']
-gen_in_out = pd.concat([df_perturbed_inputs.iloc[:,1:9],df_perturbed_outputs[output_subset],df_nstartups.iloc[:,1]],axis = 1)
+gen_in_out = pd.concat([df_perturbed_inputs.iloc[:,1:9],df_perturbed_outputs[output_subset],df_nstartups.iloc[:,1]], axis=1)
 
 plt.clf()
 cmap = sns.color_palette("vlag")
 sns.set(font_scale=6.0)
-
-labels = ["X{}".format(i) for i in range(1,9)]
-labels.append("Y1")
-labels.append("Y2")
+#
+# labels = ["X{}".format(i) for i in range(1,9)]
+# labels.append("Y1")
+# labels.append("Y2")
+labels = [r"$X_{}$".format(i) for i in range(1,9)]
+labels.append(r"$Y_1$")
+labels.append(r"$Y_2$")
+# labels = [r"$x_{}$".format(i) for i in range(1,9)]
+# labels.append(r"$y_1$")
+# labels.append(r"$y_2$")
 gen_in_out.columns = labels
 
 # PEARSON
 # for corr_option in corr_options:
 corr_pearson =  gen_in_out.corr(method="pearson")
+corr_pearson[abs(corr_pearson) <= 1e-13] = 0.0
 np.savetxt('pearson.csv', corr_pearson.round(2), delimiter='&',fmt='%.2g')
 plt.clf()
 hmap = sns.heatmap(corr_pearson,xticklabels=True, yticklabels=True,cmap = cmap,vmin = -1,vmax = 1)
@@ -59,6 +67,7 @@ plt.savefig("correlation_figures/fig_correlation_matrix_{}_outputs.pdf".format("
 
 #SPEARMAN
 corr_spearman = gen_in_out.corr(method="spearman")
+np.savetxt('spearman.csv', corr_spearman.round(2), delimiter='&',fmt='%.2g')
 plt.clf()
 hmap = sns.heatmap(corr_spearman,xticklabels=True, yticklabels=True,cmap = cmap,vmin = -1,vmax = 1)
 fig = matplotlib.pyplot.gcf()
@@ -87,10 +96,12 @@ for i in range(len(labels)):
         if i == j:
             df_pcc.iloc[i,j] = 1.0
         else:
-            pair_corr = pg.pairwise_corr(gen_in_out,columns = [labels[i],labels[j]],covar = labels, method='pearson').round(3)
+            # remove i and j from covar. also remove outputs from covar.
+            covar = list(np.setdiff1d(labels, [r"$Y_1$", r"$Y_2$", labels[i], labels[j]]))
+            pair_corr = pg.pairwise_corr(gen_in_out, columns=[labels[i],labels[j]], covar=covar, method='pearson').round(3)
             df_pcc.iloc[i,j] = pair_corr['r'][0]
             df_pcc.iloc[j,i] = pair_corr['r'][0]
-
+np.savetxt('pcc.csv', df_pcc.round(2), delimiter='&',fmt='%.2g')
 plt.clf()
 hmap = sns.heatmap(df_pcc.astype('float64'),xticklabels=True, yticklabels=True,cmap = cmap,vmin = -1,vmax = 1)
 fig = matplotlib.pyplot.gcf()
@@ -119,7 +130,9 @@ for i in range(len(labels)):
         if i == j:
             df_prcc.iloc[i,j] = 1.0
         else:
-            pair_corr = pg.pairwise_corr(gen_in_out,columns = [labels[i],labels[j]],covar = labels, method='spearman').round(3)
+            # covar = list(np.setdiff1d(labels, [r"$y_1$", r"$y_2$", labels[i], labels[j]]))
+            covar = list(np.setdiff1d(labels, [r"$Y_1$", r"$Y_2$", labels[i], labels[j]]))
+            pair_corr = pg.pairwise_corr(gen_in_out, columns=[labels[i],labels[j]], covar=covar, method='spearman').round(3)
             df_prcc.iloc[i,j] = pair_corr['r'][0]
             df_prcc.iloc[j,i] = pair_corr['r'][0]
 

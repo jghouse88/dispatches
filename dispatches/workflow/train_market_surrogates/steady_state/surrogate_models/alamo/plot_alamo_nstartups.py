@@ -1,7 +1,7 @@
 import matplotlib
 import matplotlib.pyplot as plt
-matplotlib.rc('font', size=32)
-plt.rc('axes', titlesize=32)
+matplotlib.rc('font', size=18)
+plt.rc('axes', titlesize=18)
 import pickle
 import json
 import os
@@ -31,7 +31,7 @@ zstd = data['zstd_nstartups']
 #import the alamo function
 alamo_nstartups = AlamoSurrogate.load_from_file(os.path.join('models','alamo_nstartups.json'))
 X_test_scaled = (X_test - xm) / xstd
-X_test_df = pd.DataFrame(X_test_scaled,columns=xlabels)
+X_test_df = pd.DataFrame(X_test_scaled, columns=alamo_nstartups.input_labels())
 zfit = alamo_nstartups.evaluate_surrogate(X_test_df)
 predict_unscaled = (zfit*zstd + zm).to_numpy().flatten()
 
@@ -40,13 +40,20 @@ SS_res = np.sum(np.square(z_test - predict_unscaled))
 R2 = round(1 - SS_res/SS_tot,3)
 
 # plot results
-plt.figure(figsize=(12,12))
-plt.scatter(z_test, predict_unscaled, color = "green", alpha = 0.01)
-plt.plot([min(z), max(z)],[min(z), max(z)])
-plt.xlabel("True # Startups")
-plt.ylabel("Predicted # Startups")
+plt.figure(figsize=(5,5))
+plt.scatter(z_test, predict_unscaled, color = "tab:blue", alpha = 0.01)
+plt.plot([min(z), max(z)],[min(z), max(z)], color="black", linewidth=3.0)
+plt.xlabel("True # Startups", fontweight='bold')
+plt.ylabel("Predicted # Startups", fontweight='bold')
 y_text = 0.75*(max(z) + min(z)) - min(z)
 plt.annotate("$R^2 = {}$".format(R2),(0,y_text))
+
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+ax = plt.gca()
+ax.xaxis.set_major_locator(ticker.MultipleLocator(100))
+plt.tick_params(direction="in",top=True, right=True)
+
 plt.tight_layout()
 plt.savefig("figures/nstartups_alamo.png")
 plt.savefig("figures/nstartups_alamo.pdf")

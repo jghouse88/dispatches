@@ -1,17 +1,18 @@
 # produce plot
 import matplotlib
 import matplotlib.pyplot as plt
-matplotlib.rc('font', size=32)
-plt.rc('axes', titlesize=32)
+matplotlib.rc('font', size=18)
+plt.rc('axes', titlesize=18)
+import matplotlib.ticker as ticker
 import os
 import pickle
 import json
 import pandas as pd
 from sklearn.model_selection import  train_test_split
 
-f_inputs = os.path.join(os.getcwd(),"../../prescient_simulation_sweep_summary_results/prescient_generator_inputs.h5")
+f_inputs = os.path.join(os.getcwd(),"../../prescient_data/prescient_generator_inputs.h5")
 df_inputs = pd.read_hdf(f_inputs)
-f_startups = os.path.join(os.getcwd(),"../../prescient_simulation_sweep_summary_results/prescient_generator_startups.h5")
+f_startups = os.path.join(os.getcwd(),"../../prescient_data/prescient_generator_startups.h5")
 df_nstartups = pd.read_hdf(f_startups)
 
 x = df_inputs.iloc[:,[1,2,3,4,5,6,7,9]].to_numpy()
@@ -39,13 +40,20 @@ predicted_revenue = model.predict(X_test_scaled)
 predict_unscaled = predicted_revenue*zstd + zm
 
 # plot results
-plt.figure(figsize=(12,12))
-plt.scatter(z_test, predict_unscaled, color = "green", alpha = 0.01)
-plt.plot([min(z), max(z)],[min(z), max(z)])
-plt.xlabel("True # Startups")
-plt.ylabel("Predicted # Startups")
+plt.figure(figsize=(5,5))
+plt.scatter(z_test, predict_unscaled, color = "tab:blue", alpha = 0.01)
+plt.plot([min(z), max(z)],[min(z), max(z)], color="black", linewidth=3.0)
+plt.xlabel("True # Startups", fontweight='bold')
+plt.ylabel("Predicted # Startups", fontweight='bold')
 y_text = 0.75*(max(z) + min(z)) - min(z)
 plt.annotate("$R^2 = {}$".format(R2),(0,y_text))
+
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+ax = plt.gca()
+ax.xaxis.set_major_locator(ticker.MultipleLocator(100))
+plt.tick_params(direction="in",top=True, right=True)
+
 plt.tight_layout()
 plt.savefig("figures/nstartups_scikit.png")
 plt.savefig("figures/nstartups_scikit.pdf")
