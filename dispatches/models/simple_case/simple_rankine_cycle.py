@@ -490,6 +490,7 @@ def square_problem(heat_recovery=None,
                    net_power=100,
                    p_max=100,
                    calc_boiler_eff=False,
+                   coal_price=51.98, 
                    capital_payment_years=5):
 
     """This method simulates the simple rankine cycle by adding capital and
@@ -527,7 +528,7 @@ def square_problem(heat_recovery=None,
 
     m = add_capital_cost(m)
 
-    m = add_operating_cost(m, include_cooling_cost=True)
+    m = add_operating_cost(m, include_cooling_cost=True, coal_price=coal_price)
 
     # Expression for total cap and op cost - $/hr
     m.total_cost = Expression(
